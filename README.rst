@@ -288,11 +288,14 @@ steps, one can type:
 
     $ python montepython/MontePython.py run -o test -p example.param -N 100
 
+    $ montepython/MontePython.py run --conf ccl.conf -p cl_cross_corr_params_v2/cl_cross_corr_v2_gcgc_gcwl_wlwl_buba.param -o chains/test/ -N 2
+    
 If you want to analyse the run, then just type
 
 .. code::
 
     $ python montepython/MontePython.py info test/
+    
 
 Note that you probably want more than a hundred points before analyzing a
 folder.

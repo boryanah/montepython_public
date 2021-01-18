@@ -123,12 +123,14 @@ class cl_cross_corr_v2(Likelihood):
         lp = -0.5 * ((value - center) / var)**2.
         return lp
 
-    def get_interpolated_cl(self, cosmo, ls, ccl_tracers, tr1, tr2):
+    def get_interpolated_cl(self, cosmo, ls, ccl_tracers, tr1, tr2, p_of_k_a=None):
         ls_nodes = np.unique(np.geomspace(2, ls[-1], 30).astype(int)).astype(float)
+        # B.H. added the customized P(k,a)
         cls_nodes = ccl.angular_cl(cosmo.cosmo_ccl,
                                    ccl_tracers[tr1],
                                    ccl_tracers[tr2],
-                                   ls_nodes)
+                                   ls_nodes,
+                                   p_of_k_a=p_of_k_a)
         cli = interp1d(np.log(ls_nodes), cls_nodes,
                        fill_value=0, bounds_error=False)
         msk = ls >= 2
@@ -155,9 +157,8 @@ class cl_cross_corr_v2(Likelihood):
             dtype += self.get_dtype_suffix_for_tr(tr1)
 
         return dtype
-
+    
     # compute likelihood
-
     def loglkl(self, cosmo, data):
 
         # Initialize logprior
@@ -166,6 +167,9 @@ class cl_cross_corr_v2(Likelihood):
         # Initialize dictionary with ccl_tracers
         ccl_tracers = {}
 
+        # B.H. Initialize biases for tracers
+        bias_eft_tracers = {}
+        
         # Get Tracers
         for trname, trvals in self.params['tracers'].items():
             stracer = self.scovG.get_tracer(trname)
@@ -184,12 +188,28 @@ class cl_cross_corr_v2(Likelihood):
                 pz = pz[z >= dz]
 
             if trvals['type'] == 'gc':
+                # og
                 # Calculate bias
-                pname = 'gc_b_{}'.format(trvals['bin'])
-                bias = data.mcmc_parameters[pname]['current']*data.mcmc_parameters[pname]['scale']
-                bz = bias*np.ones(z.shape)
+                #pname = 'gc_b_{}'.format(trvals['bin'])
+                #bias = data.mcmc_parameters[pname]['current']*data.mcmc_parameters[pname]['scale']
+                #bz = bias*np.ones(z.shape)
+
+                # B.H. linear bias should be set to 1 
+                bz = np.ones(z.shape)
+                
+                # create a dictionary with all bias parameters: 1, b1, b2, bn, bs
+                bias_eft = {}
+                for b in cosmo.bias_eft_names:
+                    pname = 'gc_%s_%d'%(b, trvals['bin'])
+                    bias_eft[b] = data.mcmc_parameters[pname]['current']*data.mcmc_parameters[pname]['scale']
+                bias_eft['1'] = 1.
+                
+                # dictionary of dictionaries with EFT biases for each tracer
+                bias_eft_tracers[trname] = bias_eft
+                
                 # Get tracer
                 ccl_tracers[trname] = ccl.NumberCountsTracer(cosmo.cosmo_ccl,has_rsd=False,dndz=(z_dz, pz),bias=(z, bz))
+                
             elif trvals['type'] == 'wl':
                 # Get log prior for m
                 pname = 'wl_m_{}'.format(trvals['bin'])
@@ -199,16 +219,18 @@ class cl_cross_corr_v2(Likelihood):
                 A = data.mcmc_parameters['wl_ia_A']['current']*data.mcmc_parameters['wl_ia_A']['scale']
                 eta = data.mcmc_parameters['wl_ia_eta']['current']*data.mcmc_parameters['wl_ia_eta']['scale']
                 z0 = data.mcmc_parameters['wl_ia_z0']['current']*data.mcmc_parameters['wl_ia_z0']['scale']
+                # intrinsic alignments bias
                 bz = A*((1.+z)/(1.+z0))**eta*0.0139/0.013872474  # pyccl2 -> has already the factor inside. Only needed bz
                 # Get tracer
                 ccl_tracers[trname] = ccl.WeakLensingTracer(cosmo.cosmo_ccl, dndz=(z_dz,pz), ia_bias=(z,bz))
+                
             elif trvals['type'] == 'cv':
                 ccl_tracers[trname] = ccl.CMBLensingTracer(cosmo.cosmo_ccl, z_source=1100)#TODO: correct z_source
+                
             else:
                 raise ValueError('Type of tracer not recognized. It can be gc, wl or cv!')
 
         # Get theory Cls
-
         theory = np.zeros_like(self.data)
         for tr1, tr2 in self.scovG.get_tracer_combinations():
             # Get the indices for this part of the data vector
@@ -218,16 +240,73 @@ class cl_cross_corr_v2(Likelihood):
             # w.values contains the values of ell at which it is sampled
             w = self.scovG.get_bandpower_windows(ind)
             # Unbinned power spectrum.
+            # pk2d object
+
+            # B.H. informataion about the two tracers
+            trvals1 = self.params['tracers'][tr1]
+            trvals2 = self.params['tracers'][tr2]
+
+            # fill the P(k,a) array with the power spectrum predictions
+            Pk_a = np.zeros_like(cosmo.Pk_a_ij[cosmo.template_comb_names[0]])
+            # if both tracers are galaxies, Pk^{tr1,tr2} = f_i^bin1 * f_j^bin2 * Pk_ij
+            if trvals1['type'] == 'gc' and trvals2['type'] == 'gc':
+                bias_eft1 = bias_eft_tracers[tr1]
+                bias_eft2 = bias_eft_tracers[tr2]
+                
+                for key1 in bias_eft1.keys():
+                    bias1 = bias_eft1[key1]
+                    
+                    for key2 in bias_eft2.keys():
+                        bias2 = bias_eft2[key2]
+                        
+                        if key1+'_'+key2 in cosmo.Pk_a_ij.keys():
+                            comb = key1+'_'+key2
+                        else:
+                            comb = key2+'_'+key1
+                        Pk_a += bias1*bias2*cosmo.Pk_a_ij[comb]
+
+            # if first tracer is galaxies, Pk^{tr1,tr2} = f_i^bin1 * 1. * Pk_0i
+            elif trvals1['type'] == 'gc' and trvals2['type'] == 'wl':
+                bias_eft1 = bias_eft_tracers[tr1]
+
+                for key1 in bias_eft1.keys():
+                    bias1 = bias_eft1[key1]
+                    comb = '1'+'_'+key1
+                    Pk_a += bias1*cosmo.Pk_a_ij[comb]
+
+            # if second tracer is galaxies, Pk^{tr1,tr2} = f_j^bin2 * 1. * Pk_0j
+            elif trvals1['type'] == 'wl' and trvals2['type'] == 'gc':
+                bias_eft2 = bias_eft_tracers[tr2]
+
+                for key2 in bias_eft2.keys():
+                    bias2 = bias_eft2[key2]
+                    comb = '1'+'_'+key2
+                    Pk_a += bias2*cosmo.Pk_a_ij[comb]
+
+            # Pk_a is the final product
+            pk_tmp = ccl.Pk2D(a_arr=cosmo.a_arr, lk_arr=cosmo.Pk_a_ij['lk_arr'], pk_arr=Pk_a, is_logp=False)
+                        
             if self.params['interpolate_cls'] is True:
-                cl_unbinned = self.get_interpolated_cl(cosmo, w.values, ccl_tracers, tr1, tr2)
+                # apparently makes the code run faster
+                # og
+                #cl_unbinned = self.get_interpolated_cl(cosmo, w.values, ccl_tracers, tr1, tr2)
+
+                # B.H. adding our customized P(k,a) array
+                cl_unbinned = self.get_interpolated_cl(cosmo, w.values, ccl_tracers, tr1, tr2, p_of_k_a=pk_tmp)
             else:
-                cl_unbinned = ccl.angular_cl(cosmo.cosmo_ccl, ccl_tracers[tr1], ccl_tracers[tr2], w.values)
+                # og 
+                #cl_unbinned = ccl.angular_cl(cosmo.cosmo_ccl, ccl_tracers[tr1], ccl_tracers[tr2], w.values)
+
+                # B.H. adding our customized P(k,a) array
+                cl_unbinned = ccl.angular_cl(cosmo.cosmo_ccl, ccl_tracers[tr1], ccl_tracers[tr2], w.values, p_of_k_a=pk_tmp)
+                
             # Convolved with window functions.
             cl_binned = np.dot(w.weight.T, cl_unbinned)
             for tr in [tr1, tr2]:
                 trvals = self.params['tracers'][tr]
                 if  trvals['type'] == 'wl':
                     pname = 'wl_m_{}'.format(trvals['bin'])
+                    #  multiplicative bias
                     m = data.mcmc_parameters[pname]['current']*data.mcmc_parameters[pname]['scale']
                     cl_binned = (1.+m)*cl_binned
 
