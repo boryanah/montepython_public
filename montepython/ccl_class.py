@@ -184,7 +184,11 @@ class CCL():
             self.pars['w0'] = self.pars.pop('w_0')
         if 'w_a' in self.pars.keys():
             self.pars['wa'] = self.pars.pop('w_a')
-
+        if 'omega_cdm' in self.pars.keys():
+            self.pars['Omega_c'] = self.pars.pop('omega_cdm')
+        if 'omega_b' in self.pars.keys():
+            self.pars['Omega_b'] = self.pars.pop('omega_b')
+            
         self.pars.update(kars)
         return True
 
@@ -216,38 +220,55 @@ class CCL():
 
         # h needs to be kept fixed to 0.6736 (fiducial cosmology) or 1 in the yaml file todo: ask if right
         #assert (self.fid_fixed_params['h'] - param_dict['h']) < 1.e-6, "H0 needs to be fixed to 0.6736 in the yaml file" # v1
-        assert (1. - param_dict['h']) < 1.e-6, "H0 needs to be fixed to 1 in the yaml file"
+        # og
+        #assert (1. - param_dict['h']) < 1.e-6, "H0 needs to be fixed to 1 in the yaml file"
         
         # We set h = 1 in param and then treat Omega_b and Omega_c as omega_b and omega_cdm
         sigma8_cb = param_dict['sigma8']
-        #omega_cdm = param_dict['Omega_c']*self.fid_fixed_params['h']**2 # v1
-        #omega_b = param_dict['Omega_b']*self.fid_fixed_params['h']**2 # v1
-        omega_cdm = param_dict['Omega_c']*param_dict['h']**2
-        omega_b = param_dict['Omega_b']*param_dict['h']**2
+        omega_cdm = param_dict['Omega_c']#param_dict['omega_cdm']
+        omega_b = param_dict['Omega_b']#param_dict['omega_b']
         n_s = param_dict['n_s']
         A_s = (param_dict['sigma8']/self.fid_varied_params['sigma8_cb'])**2*self.fid_fixed_params['A_s']
         # updated dictionary without sigma8 because class takes only A_s and not sigma8
         updated_dict = {'A_s': A_s, 'omega_b': omega_b, 'omega_cdm': omega_cdm, 'n_s': n_s}
-        
+
         # update the CLASS object with the current parameters
-        class_cosmo = self.class_cosmo
-        # initilize  the fiducial cosmology to get the 100_theta_s parameter
         class_cosmo = Class()
+        # og
+        '''
         # remove the sigma8_cb parameter as CLASS uses A_s
         try:
             self.fid_cosmo.pop('sigma8_cb')
         except:
             pass
+        '''
+        # TESTING
+        # remove the sigma8_cb parameter as CLASS uses A_s and theta
+        try:
+            self.fid_cosmo.pop('sigma8_cb')
+            self.fid_cosmo.pop('h')
+        except:
+            pass
+        #updated_dict['100*theta_s'] = self.fid_theta
+
+        # update the cosmology
         class_cosmo.set(self.fid_cosmo)
         class_cosmo.set(updated_dict)
         class_cosmo.compute()
         
         # search for the corresponding value of H0 that keeps theta_s constant and update Omega_b and c
-        h = self.H0_search(class_cosmo, self.fid_theta, prec=1.e4, tol_t=1.e-4)
+        # og
+        #h = self.H0_search(class_cosmo, self.fid_theta, prec=1.e4, tol_t=1.e-4)
+        # TESTING
+        h = class_cosmo.h()
         param_dict['h'] = h
         param_dict['Omega_c'] = omega_cdm/h**2
         param_dict['Omega_b'] = omega_b/h**2
-        
+        try:
+            param_dict.pop('100*theta_s')
+        except:
+            pass
+            
         # cosmology of the current step
         cosmo_ccl = ccl.Cosmology(**param_dict)
         self.cosmo_ccl = cosmo_ccl

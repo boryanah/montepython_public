@@ -14,8 +14,8 @@ data.over_sampling=[1, 4]
 # data.parameters['Omega_c']   = [ 0.216800,  0.07,    0.83,   0.0027,  1.,  'cosmo']
 
 # B.H. these are actually omega_b and omega_cdm if h = 1.
-data.parameters['Omega_b']    = [ 0.02237,    0.01,    0.04,    0.028,  1.,  'cosmo']
-data.parameters['Omega_c']    = [ 0.12,       0.08,    0.83,   0.0027,  1.,  'cosmo']
+data.parameters['omega_b']    = [ 0.02237,    0.01,    0.04,    0.028,  1.,  'cosmo']
+data.parameters['omega_cdm']    = [ 0.12,       0.08,    0.83,   0.0027,  1.,  'cosmo']
 
 # Using aprox results in Fig. 7 DES18 paper + bounds in Table I
 # B.H. would need to use sigma8
@@ -29,7 +29,8 @@ data.parameters['n_s']        = [ 0.9649,      0.9,     1.,   0.004,    1.,  'co
 # og
 # data.parameters['h']        = [ 0.6736,     None,    None,   0.0,  1.,  'cosmo']
 # B.H. We have fixed h to be the fiducial value of the simulation. h is internally varied so that theta_s stays fixed
-data.parameters['h']          = [ 1.,         None,    None,   0.0,  1.,  'cosmo']
+# data.parameters['h']          = [ 1.,         None,    None,   0.0,  1.,  'cosmo']
+data.parameters['100*theta_s']  = [ 1.041533,   None,    None,   0.0,  1.,  'cosmo']
 
 # Not read by CCL
 # data.parameters['tau_reio'] = [ 0.08,    None,    None,   0.,  1.,  'cosmo']
@@ -40,8 +41,9 @@ data.parameters['w_a']        = [ 0.000000,    None,    None,     0.0,  1.,  'co
 
 # B.H. additional parameters for neutrinos
 # ASK currently it's telling me that: ValueError: Neff and m_nu must result in a number of relativistic neutrino species greater than or equal to zero.
-# data.parameters['Neff']        = [ 2.0328,    None,    None,     0.0,  1.,  'cosmo']
-# data.parameters['m_nu']        = [ 0.06,      None,    None,     0.0,  1.,  'cosmo']
+data.parameters['Neff']        = [ 2.0328,    None,    None,     0.0,  1.,  'cosmo']
+data.parameters['m_nu']        = [ 0.06,      None,    None,     0.0,  1.,  'cosmo']
+data.parameters['m_nu_type']   = [ 'single',  None,    None,     0.0,   1,  'cosmo']
 
 #------ Cosmo Arguments ------
 
@@ -57,23 +59,23 @@ data.parameters['gc_b1_2']         = [ 1.600000,    -3.,    3.,     0.11,  1.,  
 data.parameters['gc_b1_3']         = [ 1.910000,    -3.,    3.,     0.14,  1.,  'nuisance']
 data.parameters['gc_b1_4']         = [ 1.960000,    -3.,    3.,     0.14,  1.,  'nuisance']
 
-data.parameters['gc_b2_0']         = [ 1.410000,    -3.,    3.,     0.13,  1.,  'nuisance']
-data.parameters['gc_b2_1']         = [ 1.600000,    -3.,    3.,     0.12,  1.,  'nuisance']
-data.parameters['gc_b2_2']         = [ 1.600000,    -3.,    3.,     0.11,  1.,  'nuisance']
-data.parameters['gc_b2_3']         = [ 1.910000,    -3.,    3.,     0.14,  1.,  'nuisance']
-data.parameters['gc_b2_4']         = [ 1.960000,    -3.,    3.,     0.14,  1.,  'nuisance']
+data.parameters['gc_b2_0']         = [ 0.000000,   None,  None,     0.13,  1.,  'nuisance']
+data.parameters['gc_b2_1']         = [ 0.000000,   None,  None,     0.12,  1.,  'nuisance']
+data.parameters['gc_b2_2']         = [ 0.000000,   None,  None,     0.11,  1.,  'nuisance']
+data.parameters['gc_b2_3']         = [ 0.000000,   None,  None,     0.14,  1.,  'nuisance']
+data.parameters['gc_b2_4']         = [ 0.000000,   None,  None,     0.14,  1.,  'nuisance']
 
-data.parameters['gc_bn_0']         = [ 1.410000,    -3.,    3.,     0.13,  1.,  'nuisance']
-data.parameters['gc_bn_1']         = [ 1.600000,    -3.,    3.,     0.12,  1.,  'nuisance']
-data.parameters['gc_bn_2']         = [ 1.600000,    -3.,    3.,     0.11,  1.,  'nuisance']
-data.parameters['gc_bn_3']         = [ 1.910000,    -3.,    3.,     0.14,  1.,  'nuisance']
-data.parameters['gc_bn_4']         = [ 1.960000,    -3.,    3.,     0.14,  1.,  'nuisance']
+data.parameters['gc_bn_0']         = [ 0.000000,   None,  None,     0.13,  1.,  'nuisance']
+data.parameters['gc_bn_1']         = [ 0.000000,   None,  None,     0.12,  1.,  'nuisance']
+data.parameters['gc_bn_2']         = [ 0.000000,   None,  None,     0.11,  1.,  'nuisance']
+data.parameters['gc_bn_3']         = [ 0.000000,   None,  None,     0.14,  1.,  'nuisance']
+data.parameters['gc_bn_4']         = [ 0.000000,   None,  None,     0.14,  1.,  'nuisance']
 
-data.parameters['gc_bs_0']         = [ 1.410000,    -3.,    3.,     0.13,  1.,  'nuisance']
-data.parameters['gc_bs_1']         = [ 1.600000,    -3.,    3.,     0.12,  1.,  'nuisance']
-data.parameters['gc_bs_2']         = [ 1.600000,    -3.,    3.,     0.11,  1.,  'nuisance']
-data.parameters['gc_bs_3']         = [ 1.910000,    -3.,    3.,     0.14,  1.,  'nuisance']
-data.parameters['gc_bs_4']         = [ 1.960000,    -3.,    3.,     0.14,  1.,  'nuisance']
+data.parameters['gc_bs_0']         = [ 0.000000,   None,  None,     0.13,  1.,  'nuisance']
+data.parameters['gc_bs_1']         = [ 0.000000,   None,  None,     0.12,  1.,  'nuisance']
+data.parameters['gc_bs_2']         = [ 0.000000,   None,  None,     0.11,  1.,  'nuisance']
+data.parameters['gc_bs_3']         = [ 0.000000,   None,  None,     0.14,  1.,  'nuisance']
+data.parameters['gc_bs_4']         = [ 0.000000,   None,  None,     0.14,  1.,  'nuisance']
 
 # Using parameters from priors in Table I DES18 paper
 # B.H. not quite sure why those are not varied
