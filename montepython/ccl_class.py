@@ -15,16 +15,8 @@ class CCL():
 
         self.state = 1
 
-        # Set default parameters
-        self.pars = {
-            'h':       1.,
-            'Omega_c': 0.12,
-            'Omega_b': 0.02,
-            'sigma8': 0.840,
-            'n_s':     0.96,
-            'w0': -1.0,
-            'wa':  0.0
-        }
+        # initialized CCL parameters
+        self.pars = {}
 
         # B.H. names of the bias EFT parameters
         bias_eft_names = ['b1', 'b2', 'bn', 'bs']
@@ -32,7 +24,7 @@ class CCL():
         
         # load the fiducial template and the derivatives
         R_smooth = 0.
-        # todo: move
+        # todo: move to param
         data_dir = os.path.expanduser("~/repos/hybrid_eft_nbody/data/AbacusSummit_base_c000_ph006/z0.100/")
         fid_file = os.path.join(data_dir, "fid_Pk_dPk_templates_%d.asdf"%(int(R_smooth)))
         with asdf.open(fid_file, lazy_load=False, copy_arrays=True) as f:
@@ -74,7 +66,6 @@ class CCL():
             elif 'ztmp' in key:
                 z_templates[key] = header[key]
 
-
         # initilize  the fiducial cosmology to get the 100_theta_s parameter
         class_cosmo = Class()
         # remove the sigma8_cb parameter as CLASS uses A_s
@@ -82,10 +73,10 @@ class CCL():
         class_cosmo.set(fid_cosmo)
         class_cosmo.compute()
         fid_theta = class_cosmo.theta_s_100()
+        print(fid_theta)
         assert np.abs(header['theta_s_100'] - fid_theta) < 1.e-6, "CLASS not initialized properly" 
         
-        # this is the class object we will be updating
-        self.class_cosmo = class_cosmo
+        # fiducial cosmology with all CLASS parameters
         self.fid_cosmo = fid_cosmo
         self.fid_fixed_params = fid_fixed_params
         self.fid_varied_params = fid_varied_params
@@ -127,7 +118,6 @@ class CCL():
         # Final output
         print('iterations = ',str(iterations))
         print('h = ',new_cosmo.h())
-        print('100*theta_s = ',new_cosmo.theta_s_100())
 
         return new_cosmo.h()
     
@@ -218,10 +208,6 @@ class CCL():
         except KeyError:
             pass
 
-        # h needs to be kept fixed to 0.6736 (fiducial cosmology) or 1 in the yaml file todo: ask if right
-        #assert (self.fid_fixed_params['h'] - param_dict['h']) < 1.e-6, "H0 needs to be fixed to 0.6736 in the yaml file" # v1
-        # og
-        #assert (1. - param_dict['h']) < 1.e-6, "H0 needs to be fixed to 1 in the yaml file"
         
         # We set h = 1 in param and then treat Omega_b and Omega_c as omega_b and omega_cdm
         sigma8_cb = param_dict['sigma8']
@@ -234,33 +220,43 @@ class CCL():
 
         # update the CLASS object with the current parameters
         class_cosmo = Class()
-        # og
-        '''
         # remove the sigma8_cb parameter as CLASS uses A_s
         try:
             self.fid_cosmo.pop('sigma8_cb')
         except:
             pass
-        '''
-        # TESTING
-        # remove the sigma8_cb parameter as CLASS uses A_s and theta
+        # remove the Hubble parameter as CLASS can use theta_s_100
         try:
-            self.fid_cosmo.pop('sigma8_cb')
             self.fid_cosmo.pop('h')
         except:
             pass
-        #updated_dict['100*theta_s'] = self.fid_theta
-
+        # TESTING
+        # 100 theta can be passed earlier and output verbose seems useless
+        #self.fid_cosmo['100*theta_s'] = self.fid_theta
+        #self.fid_cosmo['output_verbose'] = 1
+        print(self.fid_cosmo.items())
+        print(updated_dict.items())
+        
         # update the cosmology
+        print(class_cosmo.h())
+        # TESTING
+        # create a big dic
+        #self.fid_cosmo = {**self.fid_cosmo, **updated_dict}
+        print(self.fid_cosmo.items())
         class_cosmo.set(self.fid_cosmo)
-        class_cosmo.set(updated_dict)
+        #class_cosmo.set(updated_dict)
         class_cosmo.compute()
         
         # search for the corresponding value of H0 that keeps theta_s constant and update Omega_b and c
-        # og
-        #h = self.H0_search(class_cosmo, self.fid_theta, prec=1.e4, tol_t=1.e-4)
         # TESTING
         h = class_cosmo.h()
+        print(h, class_cosmo.theta_s_100())
+        # og
+        import time
+        t1 = time.time()
+        h = self.H0_search(class_cosmo, self.fid_theta, prec=1.e4, tol_t=1.e-4)
+        print(time.time()-t1, h, class_cosmo.theta_s_100())
+        quit()
         param_dict['h'] = h
         param_dict['Omega_c'] = omega_cdm/h**2
         param_dict['Omega_b'] = omega_b/h**2

@@ -1,0 +1,38 @@
+next steps:
+
+download AbacusSummit on glamdring:
+https://github.com/boryanah/montepython_public.git
+
+use what's under AbacusSummit/ here to run:
+cd abacus_cosm000
+/home/boryanah/repos/class_public/class CLASS.ini ../abacus_base_fast.pre > abacus_cosm000.out
+cd ..
+(hybrid_eft_nbody uses the bisection which is also the parameters you have)
+
+download montepython:
+https://github.com/boryanah/montepython_public.git
+and switch to emilio
+
+download hybrid_eft_nbody just in case:
+https://github.com/boryanah/hybrid_eft_nbody.git
+
+
+MontePython:
+
+montepython/MontePython.py run --conf ccl.conf -p cl_cross_corr_params_v2/cl_cross_corr_v2_gcgc_gcwl_wlwl_buba.param -o chains/test/ -N 2
+
+python montepython/MontePython.py run --conf ccl.conf -p montepython/likelihoods/cl_cross_corr_v2/cl_cross_corr_v2_gcgc_gcwl_wlwl.param -o chains/test/ -N 2
+
+python montepython/MontePython.py info --minimal chains/test/
+
+
+
+CLASS:
+
+REMOVE SECOND NEUTRINO IN README.md
+
+100*theta_s = 1.041533
+
+-z_pk = 0.0, 1.0, 3.0, 7.0, 49.0
++z_pk = 0.1, 0.2, 0.3, 0.4, 0.5, 0.8, 1.1, 99.0
+ 
