@@ -43,45 +43,44 @@ class CCL():
         template_comb_names.append('1'+'_'+'1')
         self.template_comb_names = template_comb_names
 
-        
-        # parameters used for the EFT approach: varied are used with the derivatives; fixed just to initialize CLASS; extra is magic to make fast and accurate
-        varied_param_names = ['omega_b', 'omega_cdm', 'n_s', 'sigma8_cb']
-        fixed_param_names = ['h', 'A_s', 'alpha_s', 'N_ur', 'N_ncdm', 'omega_ncdm'] # and w0 = -1, wa = 0 by def
-        class_extra_param_names = ['T_cmb', 'Omega_dcdmdr', 'Omega_k', 'Omega_Lambda', 'Omega_scf', 'use_ppf', 'c_gamma_over_c_fld', 'cs2_fld', 'Omega_idm_dr', 'stat_f_idr', 'YHe', 'recombination', 'reio_parametrization', 'tau_reio', 'reionization_exponent', 'reionization_width', 'helium_fullreio_redshift', 'helium_fullreio_width', 'annihilation', 'decay', 'gauge', 'P_k_ini type', 'k_pivot', 'headers', 'format', 'write background', 'write thermodynamics', 'write primordial', 'input_verbose', 'background_verbose', 'thermodynamics_verbose', 'perturbations_verbose', 'transfer_verbose', 'primordial_verbose', 'spectra_verbose', 'nonlinear_verbose', 'lensing_verbose', 'output_verbose']
+        # parameters used for the EFT approach: fid_deriv are used with the derivatives; other params are just to initialize CLASS
+        deriv_param_names = ['omega_b', 'omega_cdm', 'n_s', 'sigma8_cb']
         
         # separate header items into cosmology parameters and redshift of the tempaltes
         fid_cosmo = {}
-        fid_fixed_params = {}
-        fid_varied_params = {}
+        fid_deriv_params = {}
         z_templates = {}
         for key in header.keys():
-            if key in varied_param_names:
+            if key in deriv_param_names:
                 fid_cosmo[key] = header[key]
-                fid_varied_params[key] = header[key]
-            elif key in fixed_param_names:
-                fid_cosmo[key] = header[key]
-                fid_fixed_params[key] = header[key]
-            elif key in class_extra_param_names:
-                fid_cosmo[key] = header[key]
+                fid_deriv_params[key] = header[key]
             elif 'ztmp' in key:
                 z_templates[key] = header[key]
-
-        # initilize  the fiducial cosmology to get the 100_theta_s parameter
-        class_cosmo = Class()
+            elif 'A_s' == key:
+                self.fid_A_s = header[key]
+            elif 'theta_s_100' == key:
+                theta_s_100 = header[key]
+            else:
+                fid_cosmo[key] = header[key]
+        self.fid_deriv_params = fid_deriv_params
+        self.z_templates = z_templates
+        
         # remove the sigma8_cb parameter as CLASS uses A_s
         fid_cosmo.pop('sigma8_cb')
+                
+        # initilize  the fiducial cosmology to check that you recover the theta_s from the header
+        class_cosmo = Class()
         class_cosmo.set(fid_cosmo)
         class_cosmo.compute()
         fid_theta = class_cosmo.theta_s_100()
-        print(fid_theta)
         assert np.abs(header['theta_s_100'] - fid_theta) < 1.e-6, "CLASS not initialized properly" 
         
         # fiducial cosmology with all CLASS parameters
+        fid_cosmo['100*theta_s'] = fid_theta
+
+        # removing h since the parameter that is held fixed is 100*theta_s
+        fid_cosmo.pop('h')
         self.fid_cosmo = fid_cosmo
-        self.fid_fixed_params = fid_fixed_params
-        self.fid_varied_params = fid_varied_params
-        self.fid_theta = header['theta_s_100']
-        self.z_templates = z_templates
         
     def H0_search(self, new_cosmo, theta_def, h_ini=0.55, h_fin=0.85, prec=1.e5, tol_t=1.e-5):
         """
@@ -136,8 +135,31 @@ class CCL():
         return ccl.sigma8(self.cosmo_ccl)
 
     def get_Omegam(self):
-        Omm = self.pars['Omega_c'] + self.pars['Omega_b']
+        # og
+        #Omm = self.pars['Omega_c'] + self.pars['Omega_b']
+        # B.H. we are working with the little omega's here
+        Omm = (self.pars['omega_cdm'] + self.pars['omega_b'])/self.pars['h']**2
         return Omm
+
+    def get_Omegac(self):
+        # B.H.
+        Omc = self.pars['omega_cdm']/self.pars['h']**2
+        return Omc
+
+    def get_Omegab(self):
+        # B.H.
+        Omb = self.pars['omega_b']/self.pars['h']**2
+        return Omb
+
+    def get_A_s(self):
+        # B.H.
+        A_s = (self.pars['sigma8']/self.fid_deriv_params['sigma8_cb'])**2*self.fid_A_s
+        return A_s
+    
+    def get_H0(self):
+        # B.H.
+        H0 = self.pars['h']*100.
+        return H0
 
     def get_S8(self):
         S8 = self.get_sigma8()*(self.get_Omegam()/0.3)**(0.5)
@@ -166,7 +188,6 @@ class CCL():
             del[self.pars['params_dir']]
         if 'fiducial_cov' in self.pars.keys():
             del[self.pars['fiducial_cov']]
-        #
         if 'tau_reio' in self.pars.keys():
             raise ValueError('CCL does not read tau_reio. Remove it.')
         # Translate w_0, w_a CLASS vars to CCL w0, wa
@@ -174,10 +195,6 @@ class CCL():
             self.pars['w0'] = self.pars.pop('w_0')
         if 'w_a' in self.pars.keys():
             self.pars['wa'] = self.pars.pop('w_a')
-        if 'omega_cdm' in self.pars.keys():
-            self.pars['Omega_c'] = self.pars.pop('omega_cdm')
-        if 'omega_b' in self.pars.keys():
-            self.pars['Omega_b'] = self.pars.pop('omega_b')
             
         self.pars.update(kars)
         return True
@@ -196,80 +213,50 @@ class CCL():
             ccl.ccllib.cosmology_compute_linear_power(self.cosmo_ccl.cosmo,
                                                       pknew.psp, 0)
 
-        # self.cosmo_ccl.compute_nonlin_power()
-        ccl.sigma8(self.cosmo_ccl)  # David's suggestion
         '''
 
         # B.H. parameters for the ccl object
         param_dict = dict({'transfer_function': 'boltzmann_class'},
                           **self.pars)
-        try:
-            param_dict.pop('output')
-        except KeyError:
-            pass
-
         
         # We set h = 1 in param and then treat Omega_b and Omega_c as omega_b and omega_cdm
         sigma8_cb = param_dict['sigma8']
-        omega_cdm = param_dict['Omega_c']#param_dict['omega_cdm']
-        omega_b = param_dict['Omega_b']#param_dict['omega_b']
+        omega_cdm = param_dict['omega_cdm']
+        omega_b = param_dict['omega_b']
         n_s = param_dict['n_s']
-        A_s = (param_dict['sigma8']/self.fid_varied_params['sigma8_cb'])**2*self.fid_fixed_params['A_s']
+        A_s = self.get_A_s()
+        
         # updated dictionary without sigma8 because class takes only A_s and not sigma8
         updated_dict = {'A_s': A_s, 'omega_b': omega_b, 'omega_cdm': omega_cdm, 'n_s': n_s}
 
         # update the CLASS object with the current parameters
         class_cosmo = Class()
-        # remove the sigma8_cb parameter as CLASS uses A_s
-        try:
-            self.fid_cosmo.pop('sigma8_cb')
-        except:
-            pass
-        # remove the Hubble parameter as CLASS can use theta_s_100
-        try:
-            self.fid_cosmo.pop('h')
-        except:
-            pass
-        # TESTING
-        # 100 theta can be passed earlier and output verbose seems useless
-        #self.fid_cosmo['100*theta_s'] = self.fid_theta
-        #self.fid_cosmo['output_verbose'] = 1
-        print(self.fid_cosmo.items())
-        print(updated_dict.items())
         
         # update the cosmology
-        print(class_cosmo.h())
-        # TESTING
-        # create a big dic
-        #self.fid_cosmo = {**self.fid_cosmo, **updated_dict}
-        print(self.fid_cosmo.items())
-        class_cosmo.set(self.fid_cosmo)
-        #class_cosmo.set(updated_dict)
+        new_cosmo = {**self.fid_cosmo, **updated_dict}
+        class_cosmo.set(new_cosmo)
         class_cosmo.compute()
         
         # search for the corresponding value of H0 that keeps theta_s constant and update Omega_b and c
-        # TESTING
         h = class_cosmo.h()
-        print(h, class_cosmo.theta_s_100())
-        # og
-        import time
-        t1 = time.time()
-        h = self.H0_search(class_cosmo, self.fid_theta, prec=1.e4, tol_t=1.e-4)
-        print(time.time()-t1, h, class_cosmo.theta_s_100())
-        quit()
+        #h = self.H0_search(class_cosmo, self.fid_cosmo['100*theta_s'], prec=1.e4, tol_t=1.e-4)
         param_dict['h'] = h
         param_dict['Omega_c'] = omega_cdm/h**2
         param_dict['Omega_b'] = omega_b/h**2
-        try:
-            param_dict.pop('100*theta_s')
-        except:
-            pass
+
+        # remove parameters not recognized by ccl
+        param_not_ccl = ['100*theta_s', 'omega_cdm', 'omega_b', 'output']
+        for p in param_not_ccl:
+            if p in param_dict.keys(): param_dict.pop(p)
             
         # cosmology of the current step
         cosmo_ccl = ccl.Cosmology(**param_dict)
         self.cosmo_ccl = cosmo_ccl
- 
-        # interpolate for the cosmological parameters that are being varied
+        self.cosmo_ccl.compute_nonlin_power()
+        ccl.sigma8(self.cosmo_ccl)  # David's suggestion
+        self.pars['h'] = h
+
+        # interpolate for the cosmological parameters that are being deriv
         Pk_a_ij = {}
         a_arr = np.zeros(len(self.z_templates))
         # for a given redshift
@@ -280,10 +267,10 @@ class CCL():
                 a_arr[i] = 1./(1+self.z_templates[z_str])
                 key = z_str+'_'+combo
                 Pk = self.fid_dPk_Pk_templates[key] + \
-                     self.fid_dPk_Pk_templates[key+'_'+'omega_b'] * (omega_b - self.fid_varied_params['omega_b']) + \
-                     self.fid_dPk_Pk_templates[key+'_'+'omega_cdm'] * (omega_cdm - self.fid_varied_params['omega_cdm']) + \
-                     self.fid_dPk_Pk_templates[key+'_'+'n_s'] * (n_s - self.fid_varied_params['n_s']) + \
-                     self.fid_dPk_Pk_templates[key+'_'+'sigma8_cb'] * (sigma8_cb - self.fid_varied_params['sigma8_cb'])
+                     self.fid_dPk_Pk_templates[key+'_'+'omega_b'] * (omega_b - self.fid_deriv_params['omega_b']) + \
+                     self.fid_dPk_Pk_templates[key+'_'+'omega_cdm'] * (omega_cdm - self.fid_deriv_params['omega_cdm']) + \
+                     self.fid_dPk_Pk_templates[key+'_'+'n_s'] * (n_s - self.fid_deriv_params['n_s']) + \
+                     self.fid_dPk_Pk_templates[key+'_'+'sigma8_cb'] * (sigma8_cb - self.fid_deriv_params['sigma8_cb'])
                 # convert to Mpc^3 rather than [Mpc/h]^3
                 Pk_a[i, :] = Pk/h**3.
             Pk_a_ij[combo] = Pk_a
@@ -301,8 +288,16 @@ class CCL():
                 value = self.get_sigma8()
             elif name == 'Omega_m':
                 value = self.get_Omegam()
+            elif name == 'Omega_b':
+                value = self.get_Omegab()
+            elif name == 'Omega_c':
+                value = self.get_Omegac()
+            elif name == 'A_s':
+                value = self.get_A_s()
             elif name == 'S_8':
                 value = self.get_S8()
+            elif name == 'H0':
+                value = self.get_H0()
             else:
                 msg = "%s was not recognized as a derived parameter" % name
                 raise RuntimeError(msg)

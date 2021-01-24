@@ -208,7 +208,7 @@ class cl_cross_corr_v2(Likelihood):
                 bias_eft_tracers[trname] = bias_eft
                 
                 # Get tracer
-                ccl_tracers[trname] = ccl.NumberCountsTracer(cosmo.cosmo_ccl,has_rsd=False,dndz=(z_dz, pz),bias=(z, bz))
+                ccl_tracers[trname] = ccl.NumberCountsTracer(cosmo.cosmo_ccl, has_rsd=False, dndz=(z_dz, pz), bias=(z, bz))
                 
             elif trvals['type'] == 'wl':
                 # Get log prior for m
@@ -242,7 +242,7 @@ class cl_cross_corr_v2(Likelihood):
             # Unbinned power spectrum.
             # pk2d object
 
-            # B.H. informataion about the two tracers
+            # B.H. information about the two tracers
             trvals1 = self.params['tracers'][tr1]
             trvals2 = self.params['tracers'][tr2]
 
@@ -283,23 +283,21 @@ class cl_cross_corr_v2(Likelihood):
                     comb = '1'+'_'+key2
                     Pk_a += bias2*cosmo.Pk_a_ij[comb]
 
-            # Pk_a is the final product
-            pk_tmp = ccl.Pk2D(a_arr=cosmo.a_arr, lk_arr=cosmo.Pk_a_ij['lk_arr'], pk_arr=Pk_a, is_logp=False)
-                        
-            if self.params['interpolate_cls'] is True:
-                # apparently makes the code run faster
-                # og
-                #cl_unbinned = self.get_interpolated_cl(cosmo, w.values, ccl_tracers, tr1, tr2)
+            # if both tracers are weak lensing, Pk^{tr1,tr2} = 1. * 1. * Pk_00
+            else:
+                Pk_a = cosmo.Pk_a_ij['1_1']
 
+            # create a 2D power spectrum object
+            pk_tmp = ccl.Pk2D(a_arr=cosmo.a_arr, lk_arr=cosmo.Pk_a_ij['lk_arr'], pk_arr=Pk_a, is_logp=False)
+
+            if self.params['interpolate_cls'] is True:
+                # apparently interpolation makes the code run faster
                 # B.H. adding our customized P(k,a) array
                 cl_unbinned = self.get_interpolated_cl(cosmo, w.values, ccl_tracers, tr1, tr2, p_of_k_a=pk_tmp)
             else:
-                # og 
-                #cl_unbinned = ccl.angular_cl(cosmo.cosmo_ccl, ccl_tracers[tr1], ccl_tracers[tr2], w.values)
-
                 # B.H. adding our customized P(k,a) array
                 cl_unbinned = ccl.angular_cl(cosmo.cosmo_ccl, ccl_tracers[tr1], ccl_tracers[tr2], w.values, p_of_k_a=pk_tmp)
-                
+
             # Convolved with window functions.
             cl_binned = np.dot(w.weight.T, cl_unbinned)
             for tr in [tr1, tr2]:
