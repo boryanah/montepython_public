@@ -25,7 +25,7 @@ class CCL():
         # load the fiducial template and the derivatives
         R_smooth = 0.
         # todo: move to param
-        data_dir = os.path.expanduser("~/repos/hybrid_eft_nbody/data/AbacusSummit_base_c000_ph006/z0.100/")
+        data_dir = os.path.expanduser("~/repos/hybrid_eft_nbody/data/AbacusSummit_base_c000_ph000/z0.100/")
         fid_file = os.path.join(data_dir, "fid_Pk_dPk_templates_%d.asdf"%(int(R_smooth)))
         with asdf.open(fid_file, lazy_load=False, copy_arrays=True) as f:
             self.fid_dPk_Pk_templates = f['data']
@@ -77,6 +77,7 @@ class CCL():
         
         # fiducial cosmology with all CLASS parameters
         fid_cosmo['100*theta_s'] = fid_theta
+        self.fid_theta = fid_theta
 
         # removing h since the parameter that is held fixed is 100*theta_s
         fid_cosmo.pop('h')
@@ -98,7 +99,7 @@ class CCL():
         left = 0 # Determines the starting index of the list we have to search in
         right = N_h-1 # Determines the last index of the list we have to search in
         mid = (right + left)//2
-
+        
         while(np.abs(this_theta-theta_def) > tol_t): # If this is not our search element
             # If the current middle element is less than x then move the left next to mid
             # Else we move right next to mid
@@ -153,7 +154,7 @@ class CCL():
 
     def get_A_s(self):
         # B.H.
-        A_s = (self.pars['sigma8']/self.fid_deriv_params['sigma8_cb'])**2*self.fid_A_s
+        A_s = (self.pars['sigma8_cb']/self.fid_deriv_params['sigma8_cb'])**2*self.fid_A_s
         return A_s
     
     def get_H0(self):
@@ -177,8 +178,8 @@ class CCL():
     
     # Set up the dictionary
     def set(self, *pars_in, **kars):
-        if ('A_s' in pars_in[0].keys()) and ('sigma8' in self.pars.keys()):
-            self.pars.pop('sigma8')
+        if ('A_s' in pars_in[0].keys()) and ('sigma8_cb' in self.pars.keys()):
+            self.pars.pop('sigma8_cb')
         if len(pars_in) == 1:
             self.pars.update(dict(pars_in[0]))
         elif len(pars_in) != 0:
@@ -220,40 +221,61 @@ class CCL():
                           **self.pars)
         
         # We set h = 1 in param and then treat Omega_b and Omega_c as omega_b and omega_cdm
-        sigma8_cb = param_dict['sigma8']
+        sigma8_cb = param_dict['sigma8_cb']
         omega_cdm = param_dict['omega_cdm']
         omega_b = param_dict['omega_b']
         n_s = param_dict['n_s']
         A_s = self.get_A_s()
-        
+
+        # TESTING start
+        '''
+        omega_b = self.fid_deriv_params['omega_b']*0.99
+        omega_cdm = self.fid_deriv_params['omega_cdm']*1.01
+        n_s = self.fid_deriv_params['n_s']*0.99
+        sigma8_cb = self.fid_deriv_params['sigma8_cb']*1.01
+        param_dict['sigma8_cb'] = sigma8_cb
+        param_dict['n_s'] = n_s
+        h = 0.6736
+        self.pars['sigma8_cb'] = sigma8_cb
+        A_s = self.get_A_s()
+        '''
+        # TESTING end
+
         # updated dictionary without sigma8 because class takes only A_s and not sigma8
         updated_dict = {'A_s': A_s, 'omega_b': omega_b, 'omega_cdm': omega_cdm, 'n_s': n_s}
-
+        
         # update the CLASS object with the current parameters
         class_cosmo = Class()
         
         # update the cosmology
         new_cosmo = {**self.fid_cosmo, **updated_dict}
+        # TESTING start
+        '''
+        new_cosmo['output'] = 'mPk'
+        new_cosmo['z_max_pk'] = 1.1
+        '''
+        # TESTING end
         class_cosmo.set(new_cosmo)
         class_cosmo.compute()
         
         # search for the corresponding value of H0 that keeps theta_s constant and update Omega_b and c
         h = class_cosmo.h()
-        #h = self.H0_search(class_cosmo, self.fid_cosmo['100*theta_s'], prec=1.e4, tol_t=1.e-4)
+        #h = self.H0_search(class_cosmo, self.fid_theta, prec=1.e6, tol_t=1.e-6)
+        
+        # update the H0 value and the energy densities
         param_dict['h'] = h
         param_dict['Omega_c'] = omega_cdm/h**2
         param_dict['Omega_b'] = omega_b/h**2
+        param_dict['A_s'] = A_s
 
         # remove parameters not recognized by ccl
-        param_not_ccl = ['100*theta_s', 'omega_cdm', 'omega_b', 'output']
+        param_not_ccl = ['100*theta_s', 'omega_cdm', 'omega_b', 'output', 'sigma8_cb']
         for p in param_not_ccl:
             if p in param_dict.keys(): param_dict.pop(p)
             
         # cosmology of the current step
         cosmo_ccl = ccl.Cosmology(**param_dict)
         self.cosmo_ccl = cosmo_ccl
-        self.cosmo_ccl.compute_nonlin_power()
-        ccl.sigma8(self.cosmo_ccl)  # David's suggestion
         self.pars['h'] = h
 
         # interpolate for the cosmological parameters that are being deriv
@@ -278,6 +300,27 @@ class CCL():
         Pk_a_ij['lk_arr'] = np.log(self.ks*h)
         self.Pk_a_ij = Pk_a_ij
         self.a_arr = a_arr
+
+        #self.cosmo_ccl.compute_nonlin_power()
+        #ccl.sigma8(self.cosmo_ccl)  # David's suggestion
+
+        # TESTING start
+        '''
+        for i in range(1):#(6):
+            z_test = self.z_templates['ztmp%d'%i]
+            NL = ccl.nonlin_matter_power(self.cosmo_ccl, self.ks*h, a=1./(1+z_test))
+            print(z_test, h)
+            
+            #print(Pk_a_ij['1_1'][0,:], NL, z_test)
+            np.save('lk_arr_%d.npy'%i, Pk_a_ij['lk_arr'])
+            np.save('Pk_11_%d.npy'%i, Pk_a_ij['1_1'][i,:])
+            class_ks = np.logspace(-5, np.log10(1), 1000)
+            np.save("class_%d.npy"%i, np.array([class_cosmo.pk(ki, z_test) for ki in class_ks]))
+            np.save("class_ks_%d.npy"%i, class_ks)
+            np.save('NL_%d.npy'%i, NL)
+        '''
+        # TESTING end
+        
         return
 
     def get_current_derived_parameters(self, names):
