@@ -24,9 +24,13 @@ class CCL():
         
         # load the fiducial template and the derivatives
         R_smooth = 0.
+        self.want_ratio = True
         # todo: move to param
         data_dir = os.path.expanduser("~/repos/hybrid_eft_nbody/data/AbacusSummit_base_c000_ph000/z0.100/")
-        fid_file = os.path.join(data_dir, "fid_Pk_dPk_templates_%d.asdf"%(int(R_smooth)))
+        if self.want_ratio:
+            fid_file = os.path.join(data_dir, "fid_rat_Pk_dPk_templates_%d.asdf"%(int(R_smooth)))
+        else:
+            fid_file = os.path.join(data_dir, "fid_Pk_dPk_templates_%d.asdf"%(int(R_smooth)))
         with asdf.open(fid_file, lazy_load=False, copy_arrays=True) as f:
             self.fid_dPk_Pk_templates = f['data']
             self.ks = f['data']['ks']
@@ -229,15 +233,16 @@ class CCL():
 
         # TESTING start
         '''
-        omega_b = self.fid_deriv_params['omega_b']*0.99
-        omega_cdm = self.fid_deriv_params['omega_cdm']*1.01
-        n_s = self.fid_deriv_params['n_s']*0.99
-        sigma8_cb = self.fid_deriv_params['sigma8_cb']*1.01
+        h = 0.6736
+        omega_b = 0.0493*h**2#self.fid_deriv_params['omega_b']#*0.99
+        omega_cdm = 0.2640*h**2#self.fid_deriv_params['omega_cdm']#*1.01
+        n_s = self.fid_deriv_params['n_s']#*0.95
+        sigma8_cb = 0.8111#self.fid_deriv_params['sigma8_cb']#*1.01
         param_dict['sigma8_cb'] = sigma8_cb
         param_dict['n_s'] = n_s
-        h = 0.6736
         self.pars['sigma8_cb'] = sigma8_cb
         A_s = self.get_A_s()
+        print(A_s)
         '''
         # TESTING end
 
@@ -293,8 +298,12 @@ class CCL():
                      self.fid_dPk_Pk_templates[key+'_'+'omega_cdm'] * (omega_cdm - self.fid_deriv_params['omega_cdm']) + \
                      self.fid_dPk_Pk_templates[key+'_'+'n_s'] * (n_s - self.fid_deriv_params['n_s']) + \
                      self.fid_dPk_Pk_templates[key+'_'+'sigma8_cb'] * (sigma8_cb - self.fid_deriv_params['sigma8_cb'])
-                # convert to Mpc^3 rather than [Mpc/h]^3
-                Pk_a[i, :] = Pk/h**3.
+                if self.want_ratio:
+                    Pk *= ccl.nonlin_matter_power(self.cosmo_ccl, self.ks*h, a=a_arr[i])
+                else:
+                    # convert to Mpc^3 rather than [Mpc/h]^3
+                    Pk /= h**3.
+                Pk_a[i, :] = Pk
             Pk_a_ij[combo] = Pk_a
         # convert to Mpc^-1 rather than h/Mpc
         Pk_a_ij['lk_arr'] = np.log(self.ks*h)

@@ -1,0 +1,30 @@
+rm -r chains/test; python3 montepython/MontePython.py run --conf ccl.conf -p cl_cross_corr_params_v2/buba/vary_test.param -o chains/test -N 10
+
+
+sh run_cl_cross_cor_des_buba
+
+addqueue -n 8x2 -O -m 0.5 -c 'gcgc gcwl wlwl ~8 hours' -q cmb ./run_cl_cross_corr_des_buba
+
+python3 montepython/MontePython.py info --minimal --want-covmat chains/vary_b1_v2/
+
+addqueue -n 8x2 -O -m 0.5 -c 'gcgc ~10 hours' -q berg ./run_cl_cross_corr_des cl_cross_corr_v2_gcgc_buba 1000000
+
+Steps:
+1    MCMC with only b1's
+2    MCMC adding b2's (or others) -> Start from BF of 1 and covmat of 1
+3    MCMC adding more parameters -> same as before but with things from 2
+4    MCMC all -> using the previous BF and covmat
+
+
+
+
+
+
+
+addqueue -n 8x2 -O -m 0.5 -c 'vary b1 ~2 days' -q berg /usr/bin/python3 montepython/MontePython.py run --conf ccl.conf -p cl_cross_corr_params_v2/buba/vary_b1.param -o chains/vary_b1 --superupdate 20 -N 1000000
+
+addqueue -n 8x2 -O -m 0.5 -c 'vary b1 and dz ~2 days' -q cmb /usr/bin/python3 montepython/MontePython.py run --conf ccl.conf -p cl_cross_corr_params_v2/buba/vary_b1_dz.param -o chains/vary_b1_dz -c chains/vary_b1/cl_cross_corr_v2_gcgc_gcwl_wlwl.covmat -b chains/vary_b1/cl_cross_corr_v2_gcgc_gcwl_wlwl.bestfit --superupdate 20 -N 1000000
+
+addqueue -n 8x2 -O -m 0.5 -c 'vary bs and dz ~2 days' -q cmb /usr/bin/python3 montepython/MontePython.py run --conf ccl.conf -p cl_cross_corr_params_v2/buba/vary_bs_dz.param -o chains/vary_bs_dz -c chains/vary_b1_dz/cl_cross_corr_v2_gcgc_gcwl_wlwl.covmat -b chains/vary_b1_dz/cl_cross_corr_v2_gcgc_gcwl_wlwl.bestfit --superupdate 20 -N 1000000
+
+addqueue -n 8x2 -O -m 0.5 -c 'vary bs, dz and nuis ~2 days' -q cmb /usr/bin/python3 montepython/MontePython.py run --conf ccl.conf -p cl_cross_corr_params_v2/buba/vary_all.param -o chains/vary_all -c chains/vary_bs_dz/cl_cross_corr_v2_gcgc_gcwl_wlwl.covmat -b chains/vary_bs_dz/cl_cross_corr_v2_gcgc_gcwl_wlwl.bestfit --superupdate 20 -N 1000000

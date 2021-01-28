@@ -125,7 +125,6 @@ class cl_cross_corr_v2(Likelihood):
 
     def get_interpolated_cl(self, cosmo, ls, ccl_tracers, tr1, tr2, p_of_k_a=None):
         ls_nodes = np.unique(np.geomspace(2, ls[-1], 30).astype(int)).astype(float)
-        # B.H. added the customized P(k,a)
         cls_nodes = ccl.angular_cl(cosmo.cosmo_ccl,
                                    ccl_tracers[tr1],
                                    ccl_tracers[tr2],
@@ -188,21 +187,26 @@ class cl_cross_corr_v2(Likelihood):
                 pz = pz[z >= dz]
 
             if trvals['type'] == 'gc':
-                # og
+                
                 # Calculate bias
+                # B.H. linear bias should be set to 1 
+                bz = np.ones(z.shape)
+
+                # og
                 #pname = 'gc_b_{}'.format(trvals['bin'])
                 #bias = data.mcmc_parameters[pname]['current']*data.mcmc_parameters[pname]['scale']
                 #bz = bias*np.ones(z.shape)
-
-                # B.H. linear bias should be set to 1 
-                bz = np.ones(z.shape)
                 
-                # create a dictionary with all bias parameters: 1, b1, b2, bn, bs
+                # create a dictionary with all bias parameters: b1, b2, bn, bs + 1
                 bias_eft = {}
                 for b in cosmo.bias_eft_names:
                     pname = 'gc_%s_%d'%(b, trvals['bin'])
                     bias_eft[b] = data.mcmc_parameters[pname]['current']*data.mcmc_parameters[pname]['scale']
                 bias_eft['1'] = 1.
+                # TESTING
+                #pname = 'gc_b0_%d'%(trvals['bin'])
+                #bias_eft['1'] = data.mcmc_parameters[pname]['current']*data.mcmc_parameters[pname]['scale']
+                #print(bias_eft)
                 
                 # dictionary of dictionaries with EFT biases for each tracer
                 bias_eft_tracers[trname] = bias_eft
@@ -221,6 +225,7 @@ class cl_cross_corr_v2(Likelihood):
                 z0 = data.mcmc_parameters['wl_ia_z0']['current']*data.mcmc_parameters['wl_ia_z0']['scale']
                 # intrinsic alignments bias
                 bz = A*((1.+z)/(1.+z0))**eta*0.0139/0.013872474  # pyccl2 -> has already the factor inside. Only needed bz
+                
                 # Get tracer
                 ccl_tracers[trname] = ccl.WeakLensingTracer(cosmo.cosmo_ccl, dndz=(z_dz,pz), ia_bias=(z,bz))
                 
@@ -287,9 +292,12 @@ class cl_cross_corr_v2(Likelihood):
             else:
                 Pk_a = cosmo.Pk_a_ij['1_1']
 
-            # create a 2D power spectrum object
-            pk_tmp = ccl.Pk2D(a_arr=cosmo.a_arr, lk_arr=cosmo.Pk_a_ij['lk_arr'], pk_arr=Pk_a, is_logp=False)
-
+            if trvals1['type'] == 'wl' and trvals2['type'] == 'wl':
+                pk_tmp = None
+            else:
+                # create a 2D power spectrum object
+                pk_tmp = ccl.Pk2D(a_arr=cosmo.a_arr, lk_arr=cosmo.Pk_a_ij['lk_arr'], pk_arr=Pk_a, is_logp=False)
+            
             if self.params['interpolate_cls'] is True:
                 # apparently interpolation makes the code run faster
                 # B.H. adding our customized P(k,a) array
@@ -316,10 +324,11 @@ class cl_cross_corr_v2(Likelihood):
 
         lkl = lp - 0.5 * chi2
 
-        # print('chi2 =', chi2)
-        # print('lp =', 2* lp)
-        # np.savez_compressed(os.path.join(self.outdir, 'cl_cross_corr_bestfit_info.npz'), chi2_nolp=chi2, lp_chi2=2*lp, chi2=2*lkl, chi2dof=2*lkl/self.dof,
-        #                     cls=theory)#, ells=self.ells_tosave, tracers=self.tracers_tosave)
+        # TESTING
+        #print('chi2 =', chi2)
+        #print('lp =', 2* lp)
+        #np.savez_compressed(os.path.join(self.outdir, 'cl_cross_corr_bestfit_info.npz'), chi2_nolp=chi2, lp_chi2=2*lp, chi2=2*lkl, chi2dof=2*lkl/self.dof,
+        #                    cls=theory)#, ells=self.ells_tosave, tracers=self.tracers_tosave)
 
 
         return lkl
