@@ -229,15 +229,25 @@ class CCL():
         omega_cdm = param_dict['omega_cdm']
         omega_b = param_dict['omega_b']
         n_s = param_dict['n_s']
+        # TESTING varying H0 (insert next line)
+        #h = param_dict['h']
         A_s = self.get_A_s()
 
         # TESTING start
         '''
         h = 0.6736
-        omega_b = 0.0493*h**2#self.fid_deriv_params['omega_b']#*0.99
-        omega_cdm = 0.2640*h**2#self.fid_deriv_params['omega_cdm']#*1.01
+        omega_b = self.fid_deriv_params['omega_b']#*0.99
+        #omega_b = 0.0493*h**2
+        #omega_cdm = 0.2640*h**2
+        omega_cdm = self.fid_deriv_params['omega_cdm']#*1.01
         n_s = self.fid_deriv_params['n_s']#*0.95
-        sigma8_cb = 0.8111#self.fid_deriv_params['sigma8_cb']#*1.01
+        #sigma8_cb = 0.8111
+        sigma8_cb = self.fid_deriv_params['sigma8_cb']#*1.01
+        
+        #omega_b = 1.823163e-02
+        #omega_cdm = 1.038904e-01
+        #sigma8_cb = 8.700650e-01
+        #n_s = 1.019583e+00
         param_dict['sigma8_cb'] = sigma8_cb
         param_dict['n_s'] = n_s
         self.pars['sigma8_cb'] = sigma8_cb
@@ -250,6 +260,7 @@ class CCL():
         updated_dict = {'A_s': A_s, 'omega_b': omega_b, 'omega_cdm': omega_cdm, 'n_s': n_s}
         
         # update the CLASS object with the current parameters
+        # TESTING varying H0 (comment out)
         class_cosmo = Class()
         
         # update the cosmology
@@ -260,10 +271,16 @@ class CCL():
         new_cosmo['z_max_pk'] = 1.1
         '''
         # TESTING end
+
+        # TESTING varying H0  (comment out)
         class_cosmo.set(new_cosmo)
         class_cosmo.compute()
         
         # search for the corresponding value of H0 that keeps theta_s constant and update Omega_b and c
+        # TESTING start
+        #h = 0.6736
+        # TESTING end
+        # TESTING varying H0 (comment out)
         h = class_cosmo.h()
         #h = self.H0_search(class_cosmo, self.fid_theta, prec=1.e6, tol_t=1.e-6)
         
@@ -271,7 +288,10 @@ class CCL():
         param_dict['h'] = h
         param_dict['Omega_c'] = omega_cdm/h**2
         param_dict['Omega_b'] = omega_b/h**2
+        # I think that the normal setting is to use A_s here
         param_dict['A_s'] = A_s
+        # I think that we don't want sigma8 for class and ccl but want sigma8 for the templates
+        #param_dict['sigma8'] = param_dict.pop('sigma8_cb')
 
         # remove parameters not recognized by ccl
         param_not_ccl = ['100*theta_s', 'omega_cdm', 'omega_b', 'output', 'sigma8_cb']
@@ -293,16 +313,23 @@ class CCL():
                 z_str = 'ztmp%d'%i
                 a_arr[i] = 1./(1+self.z_templates[z_str])
                 key = z_str+'_'+combo
+                # og fixed (no evolution)
                 Pk = self.fid_dPk_Pk_templates[key] + \
                      self.fid_dPk_Pk_templates[key+'_'+'omega_b'] * (omega_b - self.fid_deriv_params['omega_b']) + \
                      self.fid_dPk_Pk_templates[key+'_'+'omega_cdm'] * (omega_cdm - self.fid_deriv_params['omega_cdm']) + \
                      self.fid_dPk_Pk_templates[key+'_'+'n_s'] * (n_s - self.fid_deriv_params['n_s']) + \
                      self.fid_dPk_Pk_templates[key+'_'+'sigma8_cb'] * (sigma8_cb - self.fid_deriv_params['sigma8_cb'])
+                '''
+                # TESTING fixed (no evolution)
+                Pk = self.fid_dPk_Pk_templates[key]+0.
+                '''
                 if self.want_ratio:
                     Pk *= ccl.nonlin_matter_power(self.cosmo_ccl, self.ks*h, a=a_arr[i])
                 else:
                     # convert to Mpc^3 rather than [Mpc/h]^3
                     Pk /= h**3.
+                # TESTING using halofit instead
+                #Pk = ccl.nonlin_matter_power(self.cosmo_ccl, self.ks*h, a=a_arr[i])
                 Pk_a[i, :] = Pk
             Pk_a_ij[combo] = Pk_a
         # convert to Mpc^-1 rather than h/Mpc
